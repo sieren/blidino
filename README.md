@@ -1,4 +1,6 @@
 blidino
 =======
 
-Arduino USB-MIDI to MIDI over Bluetooth Project
+Arduino USB-MIDI to MIDI over Bluetooth Project.
+
+Coming soon!
