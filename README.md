@@ -6,7 +6,7 @@ This repo will soon host sketches and instructions to wirelessly connect USB Cla
 
 The protoype was built using a **RedBearLab Blend Micro** and a **SparkFun USB Host Shield**. The RBL Blend Micro is based on the **nRF8001** Bluetooth Chip which during development has proven to be too slow for MIDI (max. throughput of 0.6-1.0kb/s as opposed to a 31250 baud maximum on MIDI).
 
-The final project will be targeted for a ***RedBearLab nRF51822** Board with a ***Circuits@Home USB Host Shield 2.0*** for maximum compatibility and ease of use for less-adventurous users (as the big advantage is, that this won't involve any soldering).
+The final project will be targeted for a **RedBearLab nRF51822** Board with a **Circuits@Home USB Host Shield 2.0** for maximum compatibility and ease of use for less-adventurous users (as the big advantage is, that this won't involve any soldering).
 
 Sources based on the rNF8001 will be uploaed, too.
 
