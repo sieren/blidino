@@ -5,8 +5,9 @@ This project holds code specifically aimed at the *nRF51288* by RedBearLab. It i
 
 Hardware
 ========
-[USB Host Shield 2.0 for Arduino](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino) (e.g. available at [lipoly](http://www.lipoly.de)
-[RedBearLab nRF51822](http://redbearlab.com/redbearlab-nrf51822/)
+1. [USB Host Shield 2.0 for Arduino](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino) (e.g. available at [lipoly](http://www.lipoly.de)
+
+2. [RedBearLab nRF51822](http://redbearlab.com/redbearlab-nrf51822/)
 
 
 Installation
