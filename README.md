@@ -10,6 +10,7 @@ Projects
 1. [nRF52188](https://github.com/sieren/blidino/tree/master/nRF51822-BLEMIDI)
 
 This project holds code specifically aimed at the *nRF51288* by RedBearLab. It is designed to work out of the box with the [Circuits@Home USB Host Shield 2.0](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino). You can get both boards for a total of around 50$.
+
 2. [nRF 8100](https://github.com/sieren/blidino/tree/master/nRF8001-BLE-Proto)
 
 This project used to be the very first prototype built around the wide-spread nRF8001 chip. Unfortunately that chip has a throughput limitation of around 0.9kb/s, not enough for the MIDI rate of 31250 baud.
