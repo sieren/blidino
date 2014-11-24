@@ -19,7 +19,8 @@ Installation
 Known Issues
 ============
 
-• No MIDI Input 
+• No MIDI Input
+
     The SoftDevice S110 Firmware and the SDK used for the Bluetooth chips by **Nordic Semiconductors ASA**
     currently do not support MTU and FAR (Fragmentation and Assembly). iOS and OSX both transfer larger 
     packets (> 20bytes) by fragmenting these on the bluetooth stack. As a result once the system initiates 
