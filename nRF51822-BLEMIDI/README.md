@@ -15,7 +15,7 @@ Installation
 1. Follow these [instructions](http://redbearlab.com/getting-started-nrf51822/) to set-up Arduino with the [RedBearLab Add-On](https://github.com/RedBearLab/nRF51822-Arduino).
 2. Replace the ***projectconfig.h*** in the */hardware/arduino/RBL_nRF51822/libraries/BLE_API/utility/* subfolder of your Arduino IDE installation (on OSX you have to right-click on the Application -> Show Package Contents and then navigate to Resources/Java).
 3. Download and import the [USB Host Shield 2.0 Library](https://github.com/felis/USB_Host_Shield_2.0) and the [USBH_MIDI Library](https://github.com/YuuichiAkagawa/USBH_MIDI) into Arduino.
-4. Compile and upload the library
+4. Compile and upload the sketch.
 
 Known Issues
 ============
