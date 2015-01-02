@@ -36,6 +36,11 @@ Known Issues
     transfer, it blocks the output permanently. For data sent from the sketch, it works 
     around this limitation by pre-fragmenting MIDI data on a higher layer.
 
+    • Implementation of official specifications
+    The sketches are based on weeks of reverse-engineering the BLE MIDI Standard.
+    As of mid-december the standard has been officially released. The reverse engineered
+    and the official specs need to be compared and subsequently implemented as per documentation.
+    This will be one of the next steps in this project.
 
 
 The [Wiki](https://github.com/sieren/blidino/wiki) will be updated frequently with information about the ongoing development.
