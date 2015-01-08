@@ -2,7 +2,7 @@ blidino
 =======
 
 Arduino USB-MIDI to MIDI over Bluetooth Project.
-This repo will soon host sketches and instructions to wirelessly connect USB Class compliant MIDI Devices to iOS / OSX Devices based on the newly released MIDI over Bluetooth protocol.
+This repo will hosts sketches and instructions to wirelessly connect USB Class compliant MIDI Devices to iOS / OSX Devices based on the recently released MIDI over Bluetooth protocol by Apple.
 
 Projects
 ========
@@ -21,10 +21,10 @@ alt="Video" width="240" height="180" border="10" /></a>
 
 [nRF 8100](https://github.com/sieren/blidino/tree/master/nRF8001-BLE-Proto)
 
-This project used to be the very first prototype built around the wide-spread nRF8001 chip. Unfortunately that chip has a throughput limitation of around 0.9kb/s, not enough for the MIDI rate of 31250 baud.
+This (legacy) project used to be the very first prototype built around the wide-spread nRF8001 chip. Unfortunately that chip has a throughput limitation of around 0.9kb/s, not enough for the MIDI rate of 31250 baud.
 
-Known Issues
-============
+Known Issues & To Do
+====================
 
 
     • No MIDI Input
