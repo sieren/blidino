@@ -81,7 +81,6 @@ uint8_t rxPayload[TXRX_BUF_LEN] = {0,};
 GattCharacteristic  txCharacteristic (uart_tx_uuid, txPayload, 1, 20,
                                      GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE_WITHOUT_RESPONSE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ);
 
-*/
 GattCharacteristic *uartChars[] = {&txCharacteristic};
 GattService         uartService(uart_base_uuid, uartChars, sizeof(uartChars) / sizeof(GattCharacteristic *));
 
