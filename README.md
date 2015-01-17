@@ -34,7 +34,7 @@ Known Issues & To Do
     and Assembly). iOS and OSX both transfer larger packets (> 20bytes) by fragmenting
     these on the bluetooth stack. As a result once the system initiates a fragmented 
     transfer, it blocks the output permanently. For data sent from the sketch, it works 
-    around this limitation by pre-fragmenting MIDI data on a higher layer.
+    around this limitation by pre-fragmenting MIDI data on a higher layer. 
 
     • Implementation of official specifications
     The sketches are based on weeks of reverse-engineering the BLE MIDI Standard.
