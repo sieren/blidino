@@ -29,12 +29,13 @@ Known Issues & To Do
 
     • No MIDI Input
 
-    The SoftDevice S110 Firmware and the SDK used for the Bluetooth chips by 
-    **Nordic Semiconductors ASA** currently do not support MTU and FAR (Fragmentation 
-    and Assembly). iOS and OSX both transfer larger packets (> 20bytes) by fragmenting
-    these on the bluetooth stack. As a result once the system initiates a fragmented 
-    transfer, it blocks the output permanently. For data sent from the sketch, it works 
-    around this limitation by pre-fragmenting MIDI data on a higher layer. 
+    I initially thought MIDI Input was not possible due to the lack of fragmentation. It turns out this
+    is caused by a bug in OS X MIDIServer Daemon which will hopefully be fixed in a future release.
+    Please be aware that you need to kill the MIDIServer if you have previously used any devices with a larger MTU (> 23)
+    before connecting to a device with a fixed standard MTU, as the MIDIServer will not recognize lower MTUs
+    and thus will not start pre-fragmenting outgoing MIDI Packets.
+    MIDI Input functionality as well as SysEx (to support e.g. Ableton Push Controllers wirelessly) will be added
+    in a forthcoming update.
 
     • Implementation of official specifications
     The sketches are based on weeks of reverse-engineering the BLE MIDI Standard.
