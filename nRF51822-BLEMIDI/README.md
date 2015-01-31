@@ -20,8 +20,7 @@ Installation
 Known Issues
 ============
 
-• No MIDI Input
-Will be added in a future release.
+• No MIDI Input (Will be added in a future release)
 
 
 
