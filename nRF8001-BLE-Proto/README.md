@@ -15,20 +15,17 @@ Hardware
 Installation
 ============
 1. Set up the board as instructed on the [RedBearLab Blend Micro](http://redbearlab.com/blendmicro/) page.
-2. Replace the ***RBL_services.h*** in the */libraries/RBL_nRF8001* subfolder of your Arduino workspace.
+2. Replace the ***RBL_services.h, RBL_nRF8001.cpp and RBL_nRF8001.h*** in the */libraries/RBL_nRF8001* subfolder of your Arduino workspace.
 3. Download and import the [USB Host Shield 2.0 Library](https://github.com/felis/USB_Host_Shield_2.0) and the [USBH_MIDI Library](https://github.com/YuuichiAkagawa/USBH_MIDI) into Arduino. You might need to check the pin assignments for SS,INT,MISO,MOSI and CLK within *USBCore.h* and *usbhost.h in the USB Host Shield Library.
 4. Compile and upload the sketch to the device.
 
 Known Issues
 ============
 
-• No MIDI Input
+• Slow MIDI Output
 
-    The SoftDevice S110 Firmware and the SDK used for the Bluetooth chips by **Nordic Semiconductors ASA**
-    currently do not support MTU and FAR (Fragmentation and Assembly). iOS and OSX both transfer larger 
-    packets (> 20bytes) by fragmenting these on the bluetooth stack. As a result once the system initiates 
-    a fragmented transfer, it blocks the output permanently. For data sent from the sketch, it works around 
-    this limitation by pre-fragmenting MIDI data on a higher layer.
+    The nRF8001 chip is designed for low-performance bluetooth applications, rendering it suitable for low
+    performance MIDI applications only. Exceeding the bandwidth will result in dropped packets or stuck notes.
 
 
 
