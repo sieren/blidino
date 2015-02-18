@@ -69,7 +69,7 @@ static int rx_buf_num, rx_state = 0;
 static uint8_t rx_temp_buf[20];
 
 
-// TXRX Service
+// TXRX Service & UDIDs 
 static const uint8_t uart_base_uuid[] = {0x03, 0xB8, 0x0E, 0x5A, 0xED, 0xE8, 0x4B, 0x33, 0xA7, 0x51, 0x6C, 0xE3, 0x4E, 0xC4, 0xC7, 0};
 static const uint8_t uart_tx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
 static const uint8_t uart_rx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
@@ -121,16 +121,21 @@ static uint8_t midiOut_buff_len = 0;
 *
 * Right now this is periodically called by the app_timer, to make sure the buffer clears
 * out fast enough as calling this through MIDI_poll() caused more delay. 
-* TO DO: Use MIDI-BLE Objects instead of byte array
+* TO DO: Use MIDI Structs instead of byte array
 *
 *******************************************************************************/
 void m_uart_rx_handle(void * p_context)
 {
   if(rx_buf_num > 0 && isConnected) {
  int bufInc = 0;
+ 
+ // with every ticker-call to this function we take 17 bytes off the buffer and send it out to BLE
  if (rx_buf_num < 17) {
-  bufInc = rx_buf_num % 17; }
-  else { bufInc = 17; }
+    bufInc = rx_buf_num % 17; 
+  }
+ else { 
+    bufInc = 17; 
+ }
   ble.updateCharacteristicValue(txCharacteristic.getHandle(), rx_buf, bufInc);
   memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice, needs to be fixed
   rx_buf_num -= bufInc;
@@ -138,6 +143,13 @@ void m_uart_rx_handle(void * p_context)
   }
 }
 
+/*******************************************************************************
+* Connection callback
+* 
+*  TO DO:
+* - Probably doesnt need Serial.Read() here since we dont do any reading
+*
+/******************************************************************************/
 void uartCallBack(void)
 {
   uint32_t err_code = NRF_SUCCESS;
@@ -238,6 +250,8 @@ void m_status_check_handle(void * p_context)
   }
 
 }
+
+// Disconnect Callback
 void disconnectionCallback(void)
 {
   Serial.println("Disconnected! \r\n");
@@ -366,28 +380,13 @@ void MIDI_poll()
 /*******************************************************************************
  * Convert MIDI BLE to MIDI USB
  *
- * TO DO: 
- * - Currently stubbed out, the nRF51288 SoftDevice S110 does not support MTU and
- * FAR (Fragmentation and Assembly) which is being used for Bluetooth Packets > 20 Bytes
+ * Pleas check the experimental branch for MIDI BLE to MIDI USB
  * 
  *******************************************************************************/
 void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
 {
-  // remove time prefix
-  // uint8_t bufMidi[128]; 
-  // Remove first 4 Bytes, rest should be fine
- /*  memcpy(bufMidi, dataptr+4, bytesRead-4);
-  
-  if (bufMidi[0] == 0xF0)
-  {
-    Serial.println("Received Sysex");
-  }
-  else
-  {
-     Serial.println("Received MIDI");
-     
-  } */
-//  if (!Midi.SendData(bufMidi
+  // stubbed out
+
 }
 
 
@@ -396,11 +395,9 @@ void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
  * Convert MIDI Data to MIDI-BLE Packets
  *
  * TO DO: 
- * - Jitter / Time Coding is not yet fully reverse-engineered
- * - 1 Byte between MIDI Packet seems to be some relative time-offset
- *
- * - Implement official specification once released
- * as this is based on reverse-engineering.
+ * - Jitter / Time Coding is not yet implemented
+ * - 1 Byte between MIDI Packet is time-offset currently ignored
+ * - Move this to proper MIDI Parsing (e.g. SysEx)
  *
  *******************************************************************************/
 void parseMIDItoAppleBle(int size, byte outBuf[3]) {
@@ -417,7 +414,7 @@ void parseMIDItoAppleBle(int size, byte outBuf[3]) {
   uint32_t err_code = NRF_SUCCESS;
   int localBufNum = rx_buf_num;
 
-  if(rx_buf_num <= 100) // arbitrary high number
+  if(rx_buf_num <= 100) // buffer up to 100 bytes
   {
       if (rx_buf_num % 17 == 0) // End of packet, start a new one
       {
