@@ -277,25 +277,7 @@ void onDataWritten(uint16_t charHandle)
   if ( charHandle == txCharacteristic.getHandle() )
   {
     ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
-//    memset(txPayload, 0, TXRX_BUF_LEN);
-  //  memcpy(txPayload, buf, TXRX_BUF_LEN); 
-
-/* for (uint8_t i = 0; i < bytesRead; i++)
-        {
-            sprintf(debugBuf, " %02X", buf[i]);
-            Serial.print(debugBuf);
-           // Serial.write(buf[i]);
-        }
-        Serial.println();
-        memset(&debugBuf[0], 0, sizeof(debugBuf)); 
-/* for(int i=0; i<bytesRead; i++){
-          sprintf(debugBuf, " %02X", txPayload[i]);
-          Serial.print(debugBuf);
-        }    
-        Serial.println();
-          Serial.print("Bytes Read: ");
-          Serial.println(bytesRead); */ 
-   parseBLEtoMIDI(buf, bytesRead);
+   	parseBLEtoMIDI(buf, bytesRead);
   }
 }
 
@@ -388,10 +370,7 @@ void MIDI_poll()
 
 /*******************************************************************************
  * Convert MIDI BLE to MIDI USB
- *
- * TO DO: 
- * - Currently stubbed out, the nRF51288 SoftDevice S110 does not support MTU and
- * FAR (Fragmentation and Assembly) which is being used for Bluetooth Packets > 20 Bytes
+ * !!!! THIS NEEDS TO BE REWRITTEN FROM SCRATCH !!!!
  * 
  *******************************************************************************/
 void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
@@ -404,37 +383,20 @@ void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
   uint8_t startStamp; /* start timestamp */
   int i = 0; /*data index*/
   char debugBuf[123];
-   char buf[20];
-   uint8_t bufMidi[128]; 
-   byte outBuf[ 3 ]; // single midi message
+  char buf[20];
+  uint8_t bufMidi[128]; 
+  byte outBuf[ 3 ]; // single midi message
   // uint8_t outBufMidi[128];
   // Remove header byte
-    memcpy(bufMidi, dataptr+1, bytesRead-1);
-    
-    
-      Serial.print("RCVD: ");
-/*  for (uint8_t i = 0; i < bytesRead-1; i++)
-        {
-            sprintf(debugBuf, " %02X", dataptr[i+1]);
-            Serial.print(debugBuf);
-           // Serial.write(buf[i]);
-        }
-        Serial.println();  */
-
-
-
-    startStamp = bufMidi[0];
-  /*  Serial.print("START STAMP: ");
-    Serial.print(startStamp);
-    Serial.println();
-*/
+   memcpy(bufMidi, dataptr+1, bytesRead-1);
+   startStamp = bufMidi[0];
+ 
 for (int i = 0; i < bytesRead-1; i++) {
     switch (prsState)
     {
       case STRT:
         if (bufMidi[i+1] == 0xF0) // looking 1 byte ahead to skip timestamp
           {
-         //   Serial.println("SYSEX MESSAGE");
             memset(&outBufMidi[0], 0, sizeof(outBufMidi)); // Empty SysEx Buffer
             outBufMidPtr = 0;
             prsState = SYSEX;
@@ -445,7 +407,6 @@ for (int i = 0; i < bytesRead-1; i++) {
             {
               if (bufMidi[4] < 127)
               {
-           //     Serial.print("RUNNING MIDI MESSAGE: ");
                 Serial.println(bufMidi[4]);
                 prsState = RUN; // Running Events
                 midStat = bufMidi[i+1]; // Save MIDI Status msg 
@@ -453,72 +414,68 @@ for (int i = 0; i < bytesRead-1; i++) {
             }
             if (prsState != RUN)
             {
-        //      Serial.println("SINGLE MIDI MESSAGE");
               prsState = MIDI;
             }
           }
           startStamp = bufMidi[i];
           break;
        case MIDI:
-          if (i%4 != 0) {
+          if (i%4 != 0) 
+					{
             sprintf(debugBuf, " %02X", bufMidi[i]);
             Serial.print(debugBuf);
-           // Serial.write(buf[i]);
-           outBuf[(i%4)] = bufMidi[i];
+           	outBuf[(i%4)] = bufMidi[i];
           }
-          else {
+          else 
+					{
             Serial.print(" - ");
             Midi.SendData(outBuf,2);
             memset(outBuf, 0, sizeof(outBuf));
           }
-          if ( i == (bytesRead-2)) { prsState = STRT; }
+          if ( i == (bytesRead-2)) 
+					{ 
+						prsState = STRT; 
+					}
          break;
-        
-         
-       
+				 
        case RUN:
-       if (i < 4 && i%4 != 0) {
-       /*     sprintf(debugBuf, " %02X", bufMidi[i]);
-            Serial.print(debugBuf); */
-           // Serial.write(buf[i]);
-           outBuf[(i%4)] = bufMidi[i];
-           if (i%4 == 3) {  Midi.SendData(outBuf,3); };
-          }
-        else if (i%2 == 0)
-        {
-       /*    Serial.print("Constructing Message: ");
-           sprintf(debugBuf, " %02X", midStat);
-            Serial.print(debugBuf);
-            sprintf(debugBuf, " %02X", bufMidi[i]);
-            Serial.print(debugBuf);
-            sprintf(debugBuf, " %02X", bufMidi[i+1]);
-            Serial.print(debugBuf);
-                      Serial.println();  */
-            outBuf[0] = midStat;
-            outBuf[1] = bufMidi[i];
-            outBuf[2] = bufMidi[i+1];
-            Midi.SendData(outBuf,3);
+	       if (i < 4 && i%4 != 0) 
+				 {
+	       		outBuf[(i%4)] = bufMidi[i];
+	          if (i%4 == 3) {  Midi.SendData(outBuf,3); };
+	       }
+	       else if (i%2 == 0)
+	       {
+	          outBuf[0] = midStat;
+	          outBuf[1] = bufMidi[i];
+	          outBuf[2] = bufMidi[i+1];
+	          Midi.SendData(outBuf,3);
 
-        }
-        if ( i == (bytesRead-2)) { prsState = STRT; }
+	       }
+	        if ( i == (bytesRead-2)) 
+					{ 
+						prsState = STRT; 
+					}
+				
        break;
        
        case SYSEX: 
          if (i == (bytesRead-2) && bufMidi[i] == 0xF7) // End reached, move pointer back and overwrite timestamp with SysEx End
          {
-      //     Serial.println("SysEx End");
            outBufMidi[outBufMidPtr-1] = bufMidi[i];
            Midi.SendData(outBufMidi, 3);
            prsState = STRT;  
            
            
            Serial.print("Dumping SYSEX BLOB: ");
-           for (int i = 0; i < outBufMidPtr; i++) {
-           sprintf(debugBuf, " %02X", outBufMidi[i]);
-            Serial.print(debugBuf); }
-                      Serial.println(); 
-         }
-         else {
+           for (int i = 0; i < outBufMidPtr; i++) 
+					 {
+           	 sprintf(debugBuf, " %02X", outBufMidi[i]);
+             Serial.print(debugBuf); }
+             Serial.println(); 
+         	 }
+         else 
+				 {
            outBufMidi[outBufMidPtr] = bufMidi[i];
            outBufMidPtr++;
          }
