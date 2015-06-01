@@ -37,7 +37,7 @@
 
 #define TXRX_BUF_LEN                     20
 #define RX_BUF_LEN                       100 /** Overwriting RX Buf Len since we handle fragmentation **/
-#define UART_RX_TIME                     APP_TIMER_TICKS(10, 0)
+#define UART_RX_TIME                     APP_TIMER_TICKS(20, 0)
 
 
 #define STATUS_CHECK_TIME                APP_TIMER_TICKS(20, 0)
@@ -45,7 +45,7 @@
 
 // Activate to debug
 // this increases delay significantly due to increased I/Os
-#define DEBUG 1
+#define DEBUG 0
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x)     Serial.print (x)
@@ -277,7 +277,10 @@ void onDataWritten(uint16_t charHandle)
   if ( charHandle == txCharacteristic.getHandle() )
   {
     ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
-   	parseBLEtoMIDI(buf, bytesRead);
+     parseBLEtoMIDI(buf, bytesRead);
+     sprintf(debugBuf, " READ: %i", bytesRead);
+             Serial.print(debugBuf);
+             Serial.println();
   }
 }
 
@@ -384,7 +387,7 @@ void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
   int i = 0; /*data index*/
   char debugBuf[123];
   char buf[20];
-  uint8_t bufMidi[128]; 
+  uint8_t bufMidi[220]; 
   byte outBuf[ 3 ]; // single midi message
   // uint8_t outBufMidi[128];
   // Remove header byte
@@ -394,7 +397,64 @@ void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
 for (int i = 0; i < bytesRead-1; i++) {
     switch (prsState)
     {
-      case STRT:
+    
+       case MIDI:
+          if (i%4 != 0) 
+	  {
+            sprintf(debugBuf, "MIDI: %02X", bufMidi[i]);
+            Serial.print(debugBuf);
+           	outBuf[(i%4)] = bufMidi[i];
+          }
+          else 
+	  {
+            Serial.print(" - ");
+            Midi.SendData(outBuf,2);
+            memset(outBuf, 0, sizeof(outBuf));
+          }
+          if ( i == (bytesRead-2)) 
+	  { 
+	    prsState = STRT; 
+	  }
+         break;
+				 
+       case RUN:
+	       if (i < 4 && i%4 != 0) 
+		{
+	       		outBuf[(i%4)] = bufMidi[i];
+	          if (i%4 == 3) {  Midi.SendData(outBuf,3); };
+	       }
+	       else if (i%2 == 0)
+	       {
+	          outBuf[0] = midStat;
+	          outBuf[1] = bufMidi[i];
+	          outBuf[2] = bufMidi[i+1];
+	          Midi.SendData(outBuf,3);
+
+	       }
+	       if ( i == (bytesRead-2)) 
+	       { 
+	          prsState = STRT; 
+	       }
+				
+       break;
+       
+       case SYSEX: 
+         if (bufMidi[i] == 0xF7) // End reached, move pointer back and overwrite timestamp with SysEx End
+         {
+           outBufMidi[outBufMidPtr] = bufMidi[i];
+           Midi.SendSysEx(outBufMidi, outBufMidPtr+1, 0);
+           prsState = STRT;  
+           outBufMidPtr = 0;
+
+         }
+         else 
+	 {			 
+           outBufMidi[outBufMidPtr] = bufMidi[i];
+           outBufMidPtr++;
+         }
+        break;
+          case STRT:
+          default:
         if (bufMidi[i+1] == 0xF0) // looking 1 byte ahead to skip timestamp
           {
             memset(&outBufMidi[0], 0, sizeof(outBufMidi)); // Empty SysEx Buffer
@@ -419,67 +479,6 @@ for (int i = 0; i < bytesRead-1; i++) {
           }
           startStamp = bufMidi[i];
           break;
-       case MIDI:
-          if (i%4 != 0) 
-					{
-            sprintf(debugBuf, " %02X", bufMidi[i]);
-            Serial.print(debugBuf);
-           	outBuf[(i%4)] = bufMidi[i];
-          }
-          else 
-					{
-            Serial.print(" - ");
-            Midi.SendData(outBuf,2);
-            memset(outBuf, 0, sizeof(outBuf));
-          }
-          if ( i == (bytesRead-2)) 
-					{ 
-						prsState = STRT; 
-					}
-         break;
-				 
-       case RUN:
-	       if (i < 4 && i%4 != 0) 
-				 {
-	       		outBuf[(i%4)] = bufMidi[i];
-	          if (i%4 == 3) {  Midi.SendData(outBuf,3); };
-	       }
-	       else if (i%2 == 0)
-	       {
-	          outBuf[0] = midStat;
-	          outBuf[1] = bufMidi[i];
-	          outBuf[2] = bufMidi[i+1];
-	          Midi.SendData(outBuf,3);
-
-	       }
-	        if ( i == (bytesRead-2)) 
-					{ 
-						prsState = STRT; 
-					}
-				
-       break;
-       
-       case SYSEX: 
-         if (i == (bytesRead-2) && bufMidi[i] == 0xF7) // End reached, move pointer back and overwrite timestamp with SysEx End
-         {
-           outBufMidi[outBufMidPtr-1] = bufMidi[i];
-           Midi.SendData(outBufMidi, 3);
-           prsState = STRT;  
-           
-           
-           Serial.print("Dumping SYSEX BLOB: ");
-           for (int i = 0; i < outBufMidPtr; i++) 
-					 {
-           	 sprintf(debugBuf, " %02X", outBufMidi[i]);
-             Serial.print(debugBuf); }
-             Serial.println(); 
-         	 }
-         else 
-				 {
-           outBufMidi[outBufMidPtr] = bufMidi[i];
-           outBufMidPtr++;
-         }
-        break;
     }
     
 }
