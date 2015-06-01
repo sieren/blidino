@@ -101,7 +101,6 @@ USB_DEVICE_DESCRIPTOR buf;
 OutParserState prsState; /* Parser */
 
 void MIDI_poll();
-void doDelay(unsigned long t1, unsigned long t2, unsigned long delayTime);
 
 boolean bFirst;
 boolean isConnected;
