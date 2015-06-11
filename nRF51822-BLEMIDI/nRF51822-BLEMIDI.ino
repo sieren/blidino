@@ -1,4 +1,3 @@
-
 /*
  *   Copyright (c) 2014 Matthias Frick, All rights reserved.
  *
@@ -31,44 +30,26 @@
 #include <Usb.h>
 #include <usbh_midi.h>
 #define __CORE_CM0_H_GENERIC
-#define BLE_UUID_TXRX_SERVICE            0x0000 /**< The UUID of the Nordic UART Service. */
-#define BLE_UUID_TX_CHARACTERISTIC       0x0001 /**< The UUID of the TX Characteristic. */
+#define BLE_UUID_TXRX_SERVICE           0x0000 /**< The UUID of the Nordic UART Service. */
+#define BLE_UUID_TX_CHARACTERISTIC      0x0001 /**< The UUID of the TX Characteristic. */
 #define BLE_UUID_RX_CHARACTERISTIC      0x0002 /**< The UUID of the RX Characteristic. */
 
-#define TXRX_BUF_LEN                     100
-#define UART_RX_TIME                     APP_TIMER_TICKS(10, 0)
-
-
-#define STATUS_CHECK_TIME                APP_TIMER_TICKS(20, 0)
-
-
-// Activate to debug
-// this increases delay significantly due to increased I/Os
-#define DEBUG 1
-
-#ifdef DEBUG
-#define DEBUG_PRINT(x)     Serial.print (x)
-#define DEBUG_PRINTDEC(x)     Serial.print (x, DEC)
-#define DEBUG_PRINTHEX(x)     Serial.print (x, HEX)
-#define DEBUG_PRINTLN(x)  Serial.println (x)
-#else
-#define DEBUG_PRINT(x)
-#define DEBUG_PRINTDEC(x)
-#define DEBUG_PRINTHEX(x)
-#define DEBUG_PRINTLN(x)
-#endif
-
-
+#define TXRX_BUF_LEN                    20
+#define RX_BUF_LEN                      100 /** Overwriting RX Buf Len since we handle fragmentation **/
+#define UART_RX_TIME                    APP_TIMER_TICKS(20, 0)
+#define STATUS_CHECK_TIME               APP_TIMER_TICKS(20, 0)
 
 BLEDevice  ble;
 
-static app_timer_id_t                    m_uart_rx_id;
-static app_timer_id_t                    m_status_check_id;
-static uint8_t rx_buf[TXRX_BUF_LEN];
+static app_timer_id_t                   m_uart_rx_id;
+static app_timer_id_t                   m_status_check_id;
+static uint8_t rx_buf[RX_BUF_LEN];
 static int rx_buf_num, rx_state = 0;
 static uint8_t rx_temp_buf[20];
+uint8_t outBufMidi[128];
+int outBufMidPtr;
 
-// TXRX Service & UDIDs
+// TXRX Service
 static const uint8_t uart_base_uuid[] = {0x03, 0xB8, 0x0E, 0x5A, 0xED, 0xE8, 0x4B, 0x33, 0xA7, 0x51, 0x6C, 0xE3, 0x4E, 0xC4, 0xC7, 0};
 static const uint8_t uart_tx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
 static const uint8_t uart_rx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
@@ -77,13 +58,19 @@ static const uint8_t uart_base_uuid_rev[] = {0, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x
 uint8_t txPayload[TXRX_BUF_LEN] = {0,};
 uint8_t rxPayload[TXRX_BUF_LEN] = {0,};
 
-GattCharacteristic  txCharacteristic (uart_tx_uuid, txPayload, 1, 20,
-                                     GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE_WITHOUT_RESPONSE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ);
+GattCharacteristic  txCharacteristic
+  (uart_tx_uuid, txPayload, 1, 20,
+  GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE |
+  GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE_WITHOUT_RESPONSE |
+  GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY |
+  GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ);
 
 GattCharacteristic *uartChars[] = {&txCharacteristic};
-GattService         uartService(uart_base_uuid, uartChars, sizeof(uartChars) / sizeof(GattCharacteristic *));
+GattService         uartService(uart_base_uuid, uartChars,
+                                sizeof(uartChars) / sizeof(GattCharacteristic *));
 
-
+/* Parser States: START (uninitialized), MIDI, SYSEX, RUNNING MSG*/
+typedef enum { STRT, MIDI, SYSEX, RUN} OutParserState;
 
 /*******************************************************************************
  * INITIALIZE USB MIDI Variables
@@ -94,12 +81,13 @@ uint8_t usbstate;
 uint8_t laststate;
 uint8_t rcode;
 USB_DEVICE_DESCRIPTOR buf;
+OutParserState prsState; /* Parser */
 
 void MIDI_poll();
-void doDelay(unsigned long t1, unsigned long t2, unsigned long delayTime);
 
 boolean bFirst;
 boolean isConnected;
+boolean isSysex;
 uint16_t pid, vid;
 
 
@@ -110,45 +98,30 @@ uint16_t pid, vid;
 static uint8_t midiOut_buff[MAX_TX_BUFF];
 static uint8_t midiOut_buff_len = 0;
 
+
+
 /*******************************************************************************
 * Send MIDI data to BLE Stack
-*
-* BLE Packet is capped to 17 bytes (2 bytes prefix + 3 bytes MIDI + 3 * 4 bytes)
-*
-* Right now this is periodically called by the app_timer, to make sure the buffer clears
-* out fast enough as calling this through MIDI_poll() caused more delay.
-* TO DO: Use MIDI Structs instead of byte array
-*
 *******************************************************************************/
 void m_uart_rx_handle(void * p_context)
 {
-if(rx_buf_num > 0 && isConnected) 
-{
-	 int bufInc = 0;
-
-	 // with every ticker-call to this function we take 17 bytes off the buffer and send it out to BLE
-	 if (rx_buf_num < 17) 
-	 {
-	    bufInc = rx_buf_num % 17;
-	 }
-	 else 
-	 {
-		 bufInc = 17;
-	 }
-	  ble.updateCharacteristicValue(txCharacteristic.getHandle(), rx_buf, bufInc);
-	  memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice, needs to be fixed
-	  rx_buf_num -= bufInc;
-	  rx_state = 0;
-}
+  if(rx_buf_num > 0 && isConnected)
+  {
+    int bufInc = 0;
+    if (rx_buf_num < 17)
+    {
+      bufInc = rx_buf_num % 17; }
+    else
+    {
+      bufInc = 17;
+    }
+    ble.updateCharacteristicValue(txCharacteristic.getHandle(), rx_buf, bufInc);
+    memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice, needs to be fixed
+    rx_buf_num -= bufInc;
+    rx_state = 0;
+  }
 }
 
-/*******************************************************************************
-* Connection callback
-*
-*  TO DO:
-* - Probably doesnt need Serial.Read() here since we dont do any reading
-*
-/******************************************************************************/
 void uartCallBack(void)
 {
   uint32_t err_code = NRF_SUCCESS;
@@ -173,8 +146,7 @@ void m_status_check_handle(void * p_context)
   Usb.Task();
   usbstate = Usb.getUsbTaskState();
 
-  if (usbstate != laststate) 
-	{
+  if (usbstate != laststate) {
     laststate = usbstate;
 
     switch (usbstate) {
@@ -197,12 +169,12 @@ void m_status_check_handle(void * p_context)
         E_Notify(PSTR("\r\nGetting device descriptor"), 0x80);
         rcode = Usb.getDevDescr(1, 0, sizeof (USB_DEVICE_DESCRIPTOR), (uint8_t*) & buf);
 
-        if (rcode) 
-				{
+        if (rcode) {
           E_Notify(PSTR("\r\nError reading device descriptor. Error code "), 0x80);
+          // print_hex(rcode, 8);
         }
-        else 
-				{
+        else {
+
           E_Notify(PSTR("\r\nDescriptor Length:\t"), 0x80);
           print_hex(buf.bLength, 8);
           E_Notify(PSTR("\r\nDescriptor type:\t"), 0x80);
@@ -245,12 +217,11 @@ void m_status_check_handle(void * p_context)
 
   if ( Usb.getUsbTaskState() == USB_STATE_RUNNING )
   {
-		MIDI_poll();
+
+    MIDI_poll();
   }
 
 }
-
-// Disconnect Callback
 void disconnectionCallback(void)
 {
   Serial.println("Disconnected! \r\n");
@@ -259,13 +230,12 @@ void disconnectionCallback(void)
   ble.startAdvertising();
 }
 
-void connectionCallback(void) 
+void connectionCallback(void)
 {
- 	isConnected = true;
- 	uint32_t err_code = NRF_SUCCESS;
+  isConnected = true;
+  uint32_t err_code = NRF_SUCCESS;
   err_code = app_timer_create(&m_uart_rx_id, APP_TIMER_MODE_REPEATED, m_uart_rx_handle);
   APP_ERROR_CHECK(err_code);
-
   err_code = app_timer_start(m_uart_rx_id, STATUS_CHECK_TIME, NULL);
   APP_ERROR_CHECK(err_code);
 }
@@ -273,31 +243,32 @@ void connectionCallback(void)
 
 /*******************************************************************************
 * Callback for INCOMING MIDI BLE Data
-*
-*
 *******************************************************************************/
-
 void onDataWritten(uint16_t charHandle)
 {
   uint8_t buf[TXRX_BUF_LEN];
   uint16_t bytesRead;
-	Serial.println("Something");
+  char debugBuf[23];
   if ( charHandle == txCharacteristic.getHandle() )
   {
     ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
     parseBLEtoMIDI(buf, bytesRead);
+    sprintf(debugBuf, " READ: %i", bytesRead);
+    Serial.print(debugBuf);
+    Serial.println();
   }
 }
 
 void setup(void)
 {
+  prsState = STRT; // Assuming MIDI
   bFirst = true;
   vid = pid = 0;
   isConnected = false;
   uint32_t err_code = NRF_SUCCESS;
   uart_callback_t uart_cb;
   Serial.begin(9600);
-	
+
   //Workaround for non UHS2.0 Shield
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);
@@ -315,27 +286,26 @@ void setup(void)
   /* setup advertising */
   ble.accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED);
   ble.setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
-  ble.accumulateAdvertisingPayload(GapAdvertisingData::SHORTENED_LOCAL_NAME, (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
-  ble.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS, (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid));
+  ble.accumulateAdvertisingPayload(GapAdvertisingData::SHORTENED_LOCAL_NAME,
+    (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
+  ble.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS,
+    (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid));
 
   /* 100ms; in multiples of 0.625ms. */
   ble.setAdvertisingInterval(160);
 
   ble.addService(uartService);
   SPI.begin();
-  //Set Dev_Name
+  //Set Device Name
   err_code = RBL_SetDevName("BLIDino");
   APP_ERROR_CHECK(err_code);
 
   ble.startAdvertising();
- // err_code = app_timer_create(&m_uart_rx_id, APP_TIMER_MODE_SINGLE_SHOT, m_uart_rx_handle);
-
   err_code = app_timer_create(&m_status_check_id, APP_TIMER_MODE_REPEATED, m_status_check_handle);
   APP_ERROR_CHECK(err_code);
 
   err_code = app_timer_start(m_status_check_id, STATUS_CHECK_TIME, NULL);
   APP_ERROR_CHECK(err_code);
-
 }
 
 void loop(void)
@@ -343,20 +313,19 @@ void loop(void)
   ble.waitForEvent();
 }
 
-
 /*******************************************************************************
  * Poll MIDI DATA from USB Port
  *******************************************************************************/
 void MIDI_poll()
 {
-
   uint8_t bufMidi[64];
   uint16_t  rcvd;
   uint8_t size;
   byte outBuf[ 3 ];
   char buf[20];
 
-  if (Midi.vid != vid || Midi.pid != pid) {
+  if (Midi.vid != vid || Midi.pid != pid)
+  {
     vid = Midi.vid;
     pid = Midi.pid;
   }
@@ -364,95 +333,124 @@ void MIDI_poll()
   do {
     if ( (size = Midi.RecvData(outBuf)) > 0 ) {
       // Send data to parser
-     parseMIDItoAppleBle(size, outBuf);
-
+      parseMIDItoAppleBle(size, outBuf);
     }
   } while (size > 0);
 
  uint32_t err_code = NRF_SUCCESS;
-
 }
 
 /*******************************************************************************
  * Convert MIDI BLE to MIDI USB
- *
- * Pleas check the experimental branch for MIDI BLE to MIDI USB
- *
  *******************************************************************************/
 void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
 {
-  // stubbed out
-
+  // stubbed out, needs rewrite
 }
-
-
 
 /*******************************************************************************
  * Convert MIDI Data to MIDI-BLE Packets
- *
- * TO DO:
- * - Jitter / Time Coding is not yet implemented
- * - 1 Byte between MIDI Packet is time-offset currently ignored
- * - Move this to proper MIDI Parsing (e.g. SysEx)
- *
  *******************************************************************************/
-void parseMIDItoAppleBle(int size, byte outBuf[3]) {
+void parseMIDItoAppleBle(int size, byte outBuf[3])
+{
   char time[2];
   char buf[20];
-
   unsigned long timer = 0;
   int lastPos;
   timer = millis();
-
   uint16_t blueMidiTime = 0;
   blueMidiTime = 32768 + (timer % 16383);
 
   uint32_t err_code = NRF_SUCCESS;
   int localBufNum = rx_buf_num;
 
-  if(rx_buf_num <= 100) // buffer up to 100 bytes
+  if(rx_buf_num <= 100) // arbitrary high number
   {
-      if (rx_buf_num % 17 == 0) // End of packet, start a new one
-      {
-        rx_buf[rx_buf_num] = blueMidiTime >> 8;
-        rx_buf_num++;
-        rx_buf[rx_buf_num] = 0x80;
-        rx_buf_num++;
-      }
-      else
-      {
-        rx_buf[rx_buf_num] = 0x80;
-        rx_buf_num++;
-      }
-
-      for (int i = 0; i < size; i++)
-      {
-        rx_buf[rx_buf_num] = outBuf[i];
-        rx_buf_num++;
-      }
+    if (rx_buf_num % 17 == 0) // End of packet, start a new one
+    {
+      rx_buf[rx_buf_num] = blueMidiTime >> 8;
+      rx_buf_num++;
+      rx_buf[rx_buf_num] = 0x80;
+      rx_buf_num++;
+    }
+    else
+    {
+      rx_buf[rx_buf_num] = 0x80;
+      rx_buf_num++;
+    }
+    for (int i = 0; i < size; i++)
+    {
+      rx_buf[rx_buf_num] = outBuf[i];
+      rx_buf_num++;
+    }
   }
 }
 
-
 /*******************************************************************************
  * Convert USB Host debug info to Hex
- *
  *******************************************************************************/
-void print_hex(int v, int num_places) {
+void print_hex(int v, int num_places)
+{
   int mask = 0, n, num_nibbles, digit;
-
-  for (n = 1; n <= num_places; n++) {
+  for (n = 1; n <= num_places; n++)
+  {
     mask = (mask << 1) | 0x0001;
   }
   v = v & mask; // truncate v to specified number of places
 
   num_nibbles = num_places / 4;
-  if ((num_places % 4) != 0) {
+  if ((num_places % 4) != 0)
+  {
     ++num_nibbles;
   }
-  do {
+  do
+  {
     digit = ((v >> (num_nibbles - 1) * 4)) & 0x0f;
     DEBUG_PRINTHEX(digit);
   }
   while (--num_nibbles);
+}
+
+/* TAKEN FROM USBH_MIDI Library */
+/* https://github.com/YuuichiAkagawa/USBH_MIDI */
+/* look up a MIDI message size from spec */
+/*Return                                 */
+/*  0 : undefined message                */
+/*  0<: Vaild message size(1-3)          */
+uint8_t lookupMsgSize(uint8_t midiMsg)
+{
+    uint8_t msgSize = 0;
+    if( midiMsg < 0xf0 ) midiMsg &= 0xf0;
+    switch(midiMsg) {
+       //3 bytes messages
+        case 0xf2 : //system common message(SPP)
+        case 0x80 : //Note off
+        case 0x90 : //Note on
+        case 0xa0 : //Poly KeyPress
+        case 0xb0 : //Control Change
+        case 0xe0 : //PitchBend Change
+            msgSize = 3;
+            break;
+            //2 bytes messages
+        case 0xf1 : //system common message(MTC)
+        case 0xf3 : //system common message(SongSelect)
+        case 0xc0 : //Program Change
+        case 0xd0 : //Channel Pressure
+            msgSize = 2;
+            break;
+            //1 bytes messages
+        case 0xf8 : //system realtime message
+        case 0xf9 : //system realtime message
+        case 0xfa : //system realtime message
+        case 0xfb : //system realtime message
+        case 0xfc : //system realtime message
+        case 0xfe : //system realtime message
+        case 0xff : //system realtime message
+            msgSize = 1;
+            break;
+            //undefine messages
+        default :
+            break;
+    }
+    return msgSize;
 }
