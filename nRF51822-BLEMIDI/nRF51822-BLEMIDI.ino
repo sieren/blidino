@@ -29,17 +29,19 @@
 #include <SPI.h>
 #include <Usb.h>
 #include <usbh_midi.h>
+#include "BLEParser.h"
 #define __CORE_CM0_H_GENERIC
 #define BLE_UUID_TXRX_SERVICE           0x0000 /**< The UUID of the Nordic UART Service. */
 #define BLE_UUID_TX_CHARACTERISTIC      0x0001 /**< The UUID of the TX Characteristic. */
 #define BLE_UUID_RX_CHARACTERISTIC      0x0002 /**< The UUID of the RX Characteristic. */
 
 #define TXRX_BUF_LEN                    20
-#define RX_BUF_LEN                      100 /** Overwriting RX Buf Len since we handle fragmentation **/
-#define UART_RX_TIME                    APP_TIMER_TICKS(20, 0)
-#define STATUS_CHECK_TIME               APP_TIMER_TICKS(20, 0)
+#define RX_BUF_LEN                      20 /** Overwriting RX Buf Len since we handle fragmentation **/
+#define UART_RX_TIME                    APP_TIMER_TICKS(950, 0)
+#define STATUS_CHECK_TIME               APP_TIMER_TICKS(930, 0)
 
 BLEDevice  ble;
+mfk::midi::BLEMIDIParser parser;
 
 static app_timer_id_t                   m_uart_rx_id;
 static app_timer_id_t                   m_status_check_id;
@@ -47,7 +49,7 @@ static uint8_t rx_buf[RX_BUF_LEN];
 static int rx_buf_num, rx_state = 0;
 static uint8_t rx_temp_buf[20];
 uint8_t outBufMidi[128];
-int outBufMidPtr;
+int outBufMidiPtr;
 
 // TXRX Service
 static const uint8_t uart_base_uuid[] = {0x03, 0xB8, 0x0E, 0x5A, 0xED, 0xE8, 0x4B, 0x33, 0xA7, 0x51, 0x6C, 0xE3, 0x4E, 0xC4, 0xC7, 0};
@@ -55,6 +57,8 @@ static const uint8_t uart_tx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x4
 static const uint8_t uart_rx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
 static const uint8_t uart_base_uuid_rev[] = {0, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 0xA7, 0x33, 0x4B, 0xE8, 0xED, 0x5A, 0x0E, 0xB8, 0x03};
 
+
+ 
 uint8_t txPayload[TXRX_BUF_LEN] = {0,};
 uint8_t rxPayload[TXRX_BUF_LEN] = {0,};
 
@@ -89,7 +93,7 @@ boolean bFirst;
 boolean isConnected;
 boolean isSysex;
 uint16_t pid, vid;
-
+int bufferInUse=0;
 
 /*******************************************************************************
 * INITIALIZE Internal BLE Buffer
@@ -248,14 +252,17 @@ void onDataWritten(uint16_t charHandle)
 {
   uint8_t buf[TXRX_BUF_LEN];
   uint16_t bytesRead;
-  char debugBuf[23];
   if ( charHandle == txCharacteristic.getHandle() )
   {
     ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
-    parseBLEtoMIDI(buf, bytesRead);
-    sprintf(debugBuf, " READ: %i", bytesRead);
+    parseIncoming(buf, bytesRead);
+  /*for (int i = 0; i<bytesRead; i++)
+  {
+    sprintf(debugBuf, "%02x", buf[i]);
     Serial.print(debugBuf);
-    Serial.println();
+    
+  }
+  Serial.print("----------\n"); */
   }
 }
 
@@ -273,11 +280,13 @@ void setup(void)
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);
 
-  DEBUG_PRINTLN("BLE Arduino Slave");
+  //DEBUG_PRINTLN("BLE Arduino Slave");
   Usb.Init();
   delay(500);
   Serial.begin(9600);
 
+  parser.setUSBMidiHandle(&Midi);
+  
   ble.init();
   ble.onDisconnection(disconnectionCallback);
   ble.onConnection(connectionCallback);
@@ -333,7 +342,7 @@ void MIDI_poll()
   do {
     if ( (size = Midi.RecvData(outBuf)) > 0 ) {
       // Send data to parser
-      parseMIDItoAppleBle(size, outBuf);
+    //  parseMIDItoAppleBle(size, outBuf);
     }
   } while (size > 0);
 
@@ -343,147 +352,19 @@ void MIDI_poll()
 /*******************************************************************************
  * Convert MIDI BLE to MIDI USB
  *******************************************************************************/
-void parseBLEtoMIDI(uint8_t *dataptr, uint16_t bytesRead)
+void parseIncoming(uint8_t *buffer, uint16_t bytesRead)
 {
-  uint8_t outBuffer[128];
-  uint8_t outPtr = 0;
-  uint8_t singByte; /* single byte from message */
-  uint8_t midStat; /* midi Event for running events */
-  uint8_t startStamp; /* start timestamp */
-  int i = 0; /*data index*/
-  char debugBuf[123];
-  char buf[20];
-  uint8_t bufMidi[220]; 
-  byte outBuf[ 3 ]; // single midi message
-  // uint8_t outBufMidi[128];
-  // Remove header byte
-   memcpy(bufMidi, dataptr+1, bytesRead-1);
-   startStamp = bufMidi[0];
-
-  for (int i = 0; i < bytesRead-1; i++) {
-    switch (prsState)
-    {
-      case MIDI:
-        if (i%4 != 0)
-	      {
-          sprintf(debugBuf, "MIDI: %02X", bufMidi[i]);
-          Serial.print(debugBuf);
-          outBuf[(i%4)] = bufMidi[i];
-        }
-        else
-	      {
-          Serial.print(" - ");
-          Midi.SendData(outBuf,2);
-          memset(outBuf, 0, sizeof(outBuf));
-        }
-        if ( i == (bytesRead-2))
-	      {
-	        prsState = STRT;
-	      }
-        break;
-      case RUN:
-	      if (i < 4 && i%4 != 0)
-		    {
-	       	outBuf[(i%4)] = bufMidi[i];
-	        if (i%4 == 3)
-          {
-            Midi.SendData(outBuf,3);
-          }
-	      }
-	      else if (i%2 == 0)
-	      {
-	        outBuf[0] = midStat;
-	        outBuf[1] = bufMidi[i];
-	        outBuf[2] = bufMidi[i+1];
-	        Midi.SendData(outBuf,3);
-	      }
-	      if ( i == (bytesRead-2))
-	      {
-	        prsState = STRT;
-	      }
-        break;
-
-      case SYSEX:
-        if (bufMidi[i] == 0xF7) // End reached, move pointer back and overwrite timestamp with SysEx End
-        {
-          outBufMidi[outBufMidPtr] = bufMidi[i];
-          Midi.SendSysEx(outBufMidi, outBufMidPtr+1, 0);
-          prsState = STRT;
-          outBufMidPtr = 0;
-        }
-        else
-	      {
-          outBufMidi[outBufMidPtr] = bufMidi[i];
-          outBufMidPtr++;
-        }
-        break;
-      case STRT:
-      default:
-        if (bufMidi[i+1] == 0xF0) // looking 1 byte ahead to skip timestamp
-        {
-          memset(&outBufMidi[0], 0, sizeof(outBufMidi)); // Empty SysEx Buffer
-          outBufMidPtr = 0;
-          prsState = SYSEX;
-        }
-        else
-        {
-          if ((bytesRead-1) > 4)
-          {
-            if (bufMidi[4] < 127)
-            {
-              Serial.println(bufMidi[4]);
-              prsState = RUN; // Running Events
-              midStat = bufMidi[i+1]; // Save MIDI Status msg
-            }
-          }
-          if (prsState != RUN)
-          {
-            prsState = MIDI;
-          }
-        }
-        startStamp = bufMidi[i];
-        break;
-    }
+  for (int i = 1; i < bytesRead; i++)
+  {
+    parser.parseMidiEvent(buffer[0], buffer[i]);
   }
 }
+
 
 /*******************************************************************************
  * Convert MIDI Data to MIDI-BLE Packets
- *******************************************************************************/
-void parseMIDItoAppleBle(int size, byte outBuf[3])
-{
-  char time[2];
-  char buf[20];
-  unsigned long timer = 0;
-  int lastPos;
-  timer = millis();
-  uint16_t blueMidiTime = 0;
-  blueMidiTime = 32768 + (timer % 16383);
+*/
 
-  uint32_t err_code = NRF_SUCCESS;
-  int localBufNum = rx_buf_num;
-
-  if(rx_buf_num <= 100) // arbitrary high number
-  {
-    if (rx_buf_num % 17 == 0) // End of packet, start a new one
-    {
-      rx_buf[rx_buf_num] = blueMidiTime >> 8;
-      rx_buf_num++;
-      rx_buf[rx_buf_num] = 0x80;
-      rx_buf_num++;
-    }
-    else
-    {
-      rx_buf[rx_buf_num] = 0x80;
-      rx_buf_num++;
-    }
-    for (int i = 0; i < size; i++)
-    {
-      rx_buf[rx_buf_num] = outBuf[i];
-      rx_buf_num++;
-    }
-  }
-}
 
 /*******************************************************************************
  * Convert USB Host debug info to Hex
@@ -505,7 +386,7 @@ void print_hex(int v, int num_places)
   do
   {
     digit = ((v >> (num_nibbles - 1) * 4)) & 0x0f;
-    DEBUG_PRINTHEX(digit);
+    Serial.println(digit, HEX);
   }
   while (--num_nibbles);
 }
@@ -553,3 +434,4 @@ uint8_t lookupMsgSize(uint8_t midiMsg)
     }
     return msgSize;
 }
+ 
