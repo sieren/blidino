@@ -29,11 +29,8 @@ Known Issues & To Do
 
     • No MIDI Input
 
-    I initially thought MIDI Input was not possible due to the lack of fragmentation. It turns out this
-    is caused by a bug in OS X MIDIServer Daemon which will hopefully be fixed in a future release.
-    Please be aware that you need to kill the MIDIServer if you have previously used any devices with a larger MTU (> 23)
-    before connecting to a device with a fixed standard MTU, as the MIDIServer will not recognize lower MTUs
-    and thus will not start pre-fragmenting outgoing MIDI Packets.
+    For MIDI Input, check the experimental branches. Some changes might be neccessary as
+    they are work in progress.
     MIDI Input functionality as well as SysEx (to support e.g. Ableton Push Controllers wirelessly) will be added
     in a forthcoming update.
 
