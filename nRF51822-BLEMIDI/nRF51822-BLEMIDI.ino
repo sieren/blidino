@@ -1,5 +1,5 @@
 /*
- *   Copyright (c) 2014 Matthias Frick, All rights reserved.
+ *   Copyright (c) 2015 Matthias Frick, All rights reserved.
  *
  *   This library is free software; you can redistribute it and/or
  *   modify it under the terms of the GNU Lesser General Public
@@ -37,8 +37,11 @@
 
 #define TXRX_BUF_LEN                    20
 #define RX_BUF_LEN                      20 /** Overwriting RX Buf Len since we handle fragmentation **/
-#define UART_RX_TIME                    APP_TIMER_TICKS(950, 0)
-#define STATUS_CHECK_TIME               APP_TIMER_TICKS(930, 0)
+
+// Timer Ticks define the timing when buffers are being checked.
+// Choosing a value too high results in audible latency.
+#define UART_RX_TIME                    APP_TIMER_TICKS(20, 0)
+#define STATUS_CHECK_TIME               APP_TIMER_TICKS(20, 0)
 
 BLEDevice  ble;
 mfk::midi::BLEMIDIParser parser;
@@ -51,7 +54,7 @@ static uint8_t rx_temp_buf[20];
 uint8_t outBufMidi[128];
 int outBufMidiPtr;
 
-// TXRX Service
+// MIDI BLE Service UUIDs
 static const uint8_t uart_base_uuid[] = {0x03, 0xB8, 0x0E, 0x5A, 0xED, 0xE8, 0x4B, 0x33, 0xA7, 0x51, 0x6C, 0xE3, 0x4E, 0xC4, 0xC7, 0};
 static const uint8_t uart_tx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
 static const uint8_t uart_rx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x41, 0x12, 0xA1, 0xA9, 0xF2, 0x66, 0x9D, 0x10, 0x6B, 0xF3};
@@ -73,9 +76,6 @@ GattCharacteristic *uartChars[] = {&txCharacteristic};
 GattService         uartService(uart_base_uuid, uartChars,
                                 sizeof(uartChars) / sizeof(GattCharacteristic *));
 
-/* Parser States: START (uninitialized), MIDI, SYSEX, RUNNING MSG*/
-typedef enum { STRT, MIDI, SYSEX, RUN} OutParserState;
-
 /*******************************************************************************
  * INITIALIZE USB MIDI Variables
  *******************************************************************************/
@@ -85,7 +85,6 @@ uint8_t usbstate;
 uint8_t laststate;
 uint8_t rcode;
 USB_DEVICE_DESCRIPTOR buf;
-OutParserState prsState; /* Parser */
 
 void MIDI_poll();
 
@@ -120,30 +119,16 @@ void m_uart_rx_handle(void * p_context)
       bufInc = 17;
     }
     ble.updateCharacteristicValue(txCharacteristic.getHandle(), rx_buf, bufInc);
-    memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice, needs to be fixed
+    memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice? needs to be fixed
     rx_buf_num -= bufInc;
     rx_state = 0;
   }
 }
 
-void uartCallBack(void)
-{
-  uint32_t err_code = NRF_SUCCESS;
 
-  if (rx_state == 0)
-  {
-    rx_state = 1;
-    err_code = app_timer_start(m_uart_rx_id, UART_RX_TIME, NULL);
-    APP_ERROR_CHECK(err_code);
-    rx_buf_num = 0;
-  }
-  while ( Serial.available() )
-  {
-    rx_buf[rx_buf_num] = Serial.read();
-    rx_buf_num++;
-  }
-}
-
+/*******************************************************************************
+* Initialize USB Communication
+*******************************************************************************/
 void m_status_check_handle(void * p_context)
 {
 
@@ -177,8 +162,8 @@ void m_status_check_handle(void * p_context)
           E_Notify(PSTR("\r\nError reading device descriptor. Error code "), 0x80);
           // print_hex(rcode, 8);
         }
-        else {
-
+        else
+        {
           E_Notify(PSTR("\r\nDescriptor Length:\t"), 0x80);
           print_hex(buf.bLength, 8);
           E_Notify(PSTR("\r\nDescriptor type:\t"), 0x80);
@@ -224,16 +209,26 @@ void m_status_check_handle(void * p_context)
 
     MIDI_poll();
   }
-
 }
+
+/*******************************************************************************
+* CB for Bluetooth disconnect
+* Restarts advertising and stops the timers.
+*******************************************************************************/
 void disconnectionCallback(void)
 {
-  Serial.println("Disconnected! \r\n");
-  Serial.println("Restarting the advertising process \r\n");
+  uint32_t err_code = NRF_SUCCESS;
+  err_code = app_timer_stop(m_uart_rx_id);
+  APP_ERROR_CHECK(err_code);
   isConnected = false;
   ble.startAdvertising();
 }
 
+
+/*******************************************************************************
+* CB for incoming connections
+* Starts the timers.
+*******************************************************************************/
 void connectionCallback(void)
 {
   isConnected = true;
@@ -252,23 +247,20 @@ void onDataWritten(uint16_t charHandle)
 {
   uint8_t buf[TXRX_BUF_LEN];
   uint16_t bytesRead;
-  if ( charHandle == txCharacteristic.getHandle() )
+  if (charHandle == txCharacteristic.getHandle())
   {
     ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
     parseIncoming(buf, bytesRead);
-  /*for (int i = 0; i<bytesRead; i++)
-  {
-    sprintf(debugBuf, "%02x", buf[i]);
-    Serial.print(debugBuf);
-    
-  }
-  Serial.print("----------\n"); */
   }
 }
 
+
+/*******************************************************************************
+* Setup
+* Initialize USB Port, set Characteristics and CBs for BLE.
+*******************************************************************************/
 void setup(void)
 {
-  prsState = STRT; // Assuming MIDI
   bFirst = true;
   vid = pid = 0;
   isConnected = false;
@@ -280,7 +272,6 @@ void setup(void)
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);
 
-  //DEBUG_PRINTLN("BLE Arduino Slave");
   Usb.Init();
   delay(500);
   Serial.begin(9600);
@@ -317,6 +308,10 @@ void setup(void)
   APP_ERROR_CHECK(err_code);
 }
 
+
+/*******************************************************************************
+* BLE Loop
+*******************************************************************************/
 void loop(void)
 {
   ble.waitForEvent();
@@ -339,15 +334,56 @@ void MIDI_poll()
     pid = Midi.pid;
   }
 
-  do {
+  do
+  {
     if ( (size = Midi.RecvData(outBuf)) > 0 ) {
       // Send data to parser
-    //  parseMIDItoAppleBle(size, outBuf);
+      parseMIDItoAppleBle(size, outBuf);
     }
   } while (size > 0);
 
  uint32_t err_code = NRF_SUCCESS;
 }
+
+
+/*******************************************************************************
+ * Convert MIDI Data to MIDI-BLE Packets
+ *******************************************************************************/
+void parseMIDItoAppleBle(int size, byte outBuf[3])
+{
+  char time[2];
+  char buf[20];
+  unsigned long timer = 0;
+  int lastPos;
+  timer = millis();
+  uint16_t blueMidiTime = 0;
+  blueMidiTime = 32768 + (timer % 16383);
+
+  uint32_t err_code = NRF_SUCCESS;
+  int localBufNum = rx_buf_num;
+
+  if(rx_buf_num <= 100) // arbitrary high number
+  {
+    if (rx_buf_num % 17 == 0) // End of packet, start a new one
+    {
+      rx_buf[rx_buf_num] = blueMidiTime >> 8;
+      rx_buf_num++;
+      rx_buf[rx_buf_num] = 0x80;
+      rx_buf_num++;
+    }
+    else
+    {
+      rx_buf[rx_buf_num] = 0x80;
+      rx_buf_num++;
+    }
+    for (int i = 0; i < size; i++)
+    {
+      rx_buf[rx_buf_num] = outBuf[i];
+      rx_buf_num++;
+    }
+  }
+}
+
 
 /*******************************************************************************
  * Convert MIDI BLE to MIDI USB
@@ -359,11 +395,6 @@ void parseIncoming(uint8_t *buffer, uint16_t bytesRead)
     parser.parseMidiEvent(buffer[0], buffer[i]);
   }
 }
-
-
-/*******************************************************************************
- * Convert MIDI Data to MIDI-BLE Packets
-*/
 
 
 /*******************************************************************************
