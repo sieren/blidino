@@ -1,7 +1,7 @@
 blidino (nRF51288)
 ==================
 
-This project holds code specifically aimed at the *nRF51288* by RedBearLab. It is designed to work out of the box with the [Circuits@Home USB Host Shield 2.0](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino). You can get both boards for a total of around 50$.
+This project holds code specifically aimed at the *nRF51288* by RedBearLab. It is designed to work out of the box with the [Circuits@Home USB Host Shield 2.0](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino). Both boards are available for a total of around 50$.
 
 Hardware
 ========
@@ -20,14 +20,5 @@ Installation
 Known Issues
 ============
 
-• No MIDI Input (Will be added in a future release)
+Please check the [README within the root directory](https://github.com/sieren/blidino) for known issues.
 
-
-
-The [Wiki](https://github.com/sieren/blidino/wiki) will be updated frequently with information about the ongoing development and discoveries about the BLE-MIDI Specificiation.
-
-Click the link to see a demo.
-
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=pk6db6KNVUQ
-" target="_blank"><img src="http://img.youtube.com/vi/pk6db6KNVUQ/0.jpg" 
-alt="Video" width="240" height="180" border="10" /></a>
