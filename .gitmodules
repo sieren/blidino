@@ -1,6 +1,3 @@
-[submodule "googletest/include/gtest"]
-	path = googletest/include/gtest
-	url = https://github.com/google/googletest.git
-[submodule "googletest"]
-	path = googletest
+[submodule "nRF51822-BLEMIDI/googletest"]
+	path = nRF51822-BLEMIDI/googletest
 	url = https://github.com/google/googletest.git
