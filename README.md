@@ -7,7 +7,12 @@ blidino
 Arduino USB-MIDI to MIDI over Bluetooth Project.
 This repo hosts sketches and instructions to wirelessly connect USB Class compliant MIDI Devices to iOS / OSX Devices based on the recently released MIDI over Bluetooth protocol by Apple.
 
-I am not that experienced with vanilla C, any suggestions to improve the code quality are welcome.
+The [BLEParser.h](https://github.com/auxren/blidino/blob/master/nRF51822-BLEMIDI/BLEParser.h) is fully templatized and can be injected with any class that supports the modelled functions (it is based around USBH_MIDI).
+
+GoogleMock based Unit-Tests ensure its basic feature-functionality (Single MIDI Notes, Running MIDI Status, SysEx).
+
+Simply execute `./run_unit_tests.sh` and the corresponding CMAKE file should take care of the rest (including fetching GoogleMock and GoogleTest).
+
 
 Projects
 ========
