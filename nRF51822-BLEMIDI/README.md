@@ -1,3 +1,6 @@
+[![Build
+Status](https://travis-ci.org/sieren/blidino.svg?branch=master)](https://travis-ci.org/sieren/blidino)
+
 blidino (nRF51288)
 ==================
 

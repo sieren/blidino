@@ -1,0 +1,3 @@
+[submodule "nRF51822-BLEMIDI/googletest"]
+	path = nRF51822-BLEMIDI/googletest
+	url = https://github.com/google/googletest.git

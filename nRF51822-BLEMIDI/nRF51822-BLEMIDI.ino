@@ -44,7 +44,7 @@
 #define STATUS_CHECK_TIME               APP_TIMER_TICKS(20, 0)
 
 BLEDevice  ble;
-mfk::midi::BLEMIDIParser parser;
+mfk::midi::BLEMIDIParser<256, USBH_MIDI> parser;
 
 static app_timer_id_t                   m_uart_rx_id;
 static app_timer_id_t                   m_status_check_id;

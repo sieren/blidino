@@ -1,0 +1,9 @@
+language: cpp
+os:
+  - osx
+env:
+  - CONFIG=Release
+  - CONFIG=Debug
+install:
+script:
+      ./run_unit_tests.sh
