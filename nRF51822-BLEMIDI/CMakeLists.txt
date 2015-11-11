@@ -53,8 +53,8 @@ set_target_properties(libgmock PROPERTIES
 include_directories("${source_dir}/include")
 
 file(GLOB SRCS *.cpp *.h)
-
 add_executable(bletest ${SRCS} unit_tests/tst_BLEParser.cpp)
+set_property(TARGET bletest PROPERTY CXX_STANDARD 11)
 
 target_link_libraries(bletest
     libgmock
