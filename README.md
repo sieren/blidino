@@ -30,16 +30,9 @@ Known Issues
 ====================
 
 
-    • BLE to USB
+    • USB to BLE Parsing
 
-    Due to the lack of proper devices to test this with, I cannot guarantee this is working.
-    Any feedback or PRs with the proper implementation would be appreciated.
-
-    • Official Spec implementation
-    The sketches are based on weeks of reverse-engineering the BLE MIDI Standard in late 2014.
-    As of mid-december the specifications have been officially released. The reverse engineered
-    and the official specs are close to a state that they are working.
-    However a couple of features (e.g. SysEx, Timing information) might need further work.
+    MIDI to BLE-MIDI Parsing needs to be rewritten and made testable. This will be added shortly.
 
 
 Specifications
