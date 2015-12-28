@@ -60,5 +60,7 @@ target_link_libraries(bletest
     libgmock
     libgtest
 )
-
+IF(CMAKE_SYSTEM_NAME STREQUAL Linux)
+  set_target_properties(bletest PROPERTIES COMPILE_FLAGS -pthread LINK_FLAGS -pthread)
+ENDIF(CMAKE_SYSTEM_NAME STREQUAL Linux)
 install(TARGETS bletest DESTINATION bin)
