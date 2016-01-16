@@ -23,31 +23,24 @@
  *   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  *   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
-#include <BLE_API.h>
 #include <pins_arduino.h>
-#include <SPI.h>
+#include <Arduino.h>
+#include <BLE_API.h>
+#include <nordic_common.h>
+//#include <SPI.h>
 #include <Usb.h>
 #include <usbh_midi.h>
 #include "BLEParser.h"
-#define __CORE_CM0_H_GENERIC
-#define BLE_UUID_TXRX_SERVICE           0x0000 /**< The UUID of the Nordic UART Service. */
-#define BLE_UUID_TX_CHARACTERISTIC      0x0001 /**< The UUID of the TX Characteristic. */
-#define BLE_UUID_RX_CHARACTERISTIC      0x0002 /**< The UUID of the RX Characteristic. */
+
 
 #define TXRX_BUF_LEN                    20
 #define RX_BUF_LEN                      20 /** Overwriting RX Buf Len since we handle fragmentation **/
 
-// Timer Ticks define the timing when buffers are being checked.
-// Choosing a value too high results in audible latency.
-#define UART_RX_TIME                    APP_TIMER_TICKS(20, 0)
-#define STATUS_CHECK_TIME               APP_TIMER_TICKS(20, 0)
-
-BLEDevice  ble;
+BLE  ble;
+Ticker     sendTicker;
+Ticker     usbTicker;
 mfk::midi::BLEMIDIParser<256, USBH_MIDI> parser;
 
-static app_timer_id_t                   m_uart_rx_id;
-static app_timer_id_t                   m_status_check_id;
 static uint8_t rx_buf[RX_BUF_LEN];
 static int rx_buf_num, rx_state = 0;
 static uint8_t rx_temp_buf[20];
@@ -106,7 +99,7 @@ static uint8_t midiOut_buff_len = 0;
 /*******************************************************************************
 * Send MIDI data to BLE Stack
 *******************************************************************************/
-void m_uart_rx_handle(void * p_context)
+void sendData(void)
 {
   if(rx_buf_num > 0 && isConnected)
   {
@@ -118,7 +111,7 @@ void m_uart_rx_handle(void * p_context)
     {
       bufInc = 17;
     }
-    ble.updateCharacteristicValue(txCharacteristic.getHandle(), rx_buf, bufInc);
+    ble.updateCharacteristicValue(txCharacteristic.getValueAttribute().getHandle(), rx_buf, bufInc);
     memmove(rx_buf, rx_buf+bufInc, rx_buf_num-bufInc); // probably not best practice? needs to be fixed
     rx_buf_num -= bufInc;
     rx_state = 0;
@@ -129,7 +122,7 @@ void m_uart_rx_handle(void * p_context)
 /*******************************************************************************
 * Initialize USB Communication
 *******************************************************************************/
-void m_status_check_handle(void * p_context)
+void m_status_check_handle(void)
 {
 
   Usb.Task();
@@ -215,13 +208,13 @@ void m_status_check_handle(void * p_context)
 * CB for Bluetooth disconnect
 * Restarts advertising and stops the timers.
 *******************************************************************************/
-void disconnectionCallback(void)
+void disconnectionCallback(Gap::Handle_t handle,
+  Gap::DisconnectionReason_t reason)
 {
-  uint32_t err_code = NRF_SUCCESS;
-  err_code = app_timer_stop(m_uart_rx_id);
-  APP_ERROR_CHECK(err_code);
-  isConnected = false;
-  ble.startAdvertising();
+    Serial.println("Disconnected ");
+    Serial.println("Restart advertising ");
+    isConnected = false;
+    ble.startAdvertising();
 }
 
 
@@ -229,27 +222,24 @@ void disconnectionCallback(void)
 * CB for incoming connections
 * Starts the timers.
 *******************************************************************************/
-void connectionCallback(void)
+void connectionCallback(const Gap::ConnectionCallbackParams_t* params)
 {
   isConnected = true;
-  uint32_t err_code = NRF_SUCCESS;
-  err_code = app_timer_create(&m_uart_rx_id, APP_TIMER_MODE_REPEATED, m_uart_rx_handle);
-  APP_ERROR_CHECK(err_code);
-  err_code = app_timer_start(m_uart_rx_id, STATUS_CHECK_TIME, NULL);
-  APP_ERROR_CHECK(err_code);
+  Serial.println("Connected");
+  sendTicker.attach(sendData, 0.01);
 }
 
 
 /*******************************************************************************
 * Callback for INCOMING MIDI BLE Data
 *******************************************************************************/
-void onDataWritten(uint16_t charHandle)
+void onDataWritten(const GattWriteCallbackParams *Handler)
 {
   uint8_t buf[TXRX_BUF_LEN];
   uint16_t bytesRead;
-  if (charHandle == txCharacteristic.getHandle())
+  if (Handler->handle == txCharacteristic.getValueAttribute().getHandle())
   {
-    ble.readCharacteristicValue(txCharacteristic.getHandle(), buf, &bytesRead);
+    ble.readCharacteristicValue(txCharacteristic.getValueAttribute().getHandle(), buf, &bytesRead);
     parseIncoming(buf, bytesRead);
   }
 }
@@ -264,9 +254,6 @@ void setup(void)
   bFirst = true;
   vid = pid = 0;
   isConnected = false;
-  uint32_t err_code = NRF_SUCCESS;
-  uart_callback_t uart_cb;
-  Serial.begin(9600);
 
   //Workaround for non UHS2.0 Shield
   pinMode(10, OUTPUT);
@@ -275,6 +262,7 @@ void setup(void)
   Usb.Init();
   delay(500);
   Serial.begin(9600);
+  Serial.println("Begin Init.. ");
 
   parser.setUSBMidiHandle(&Midi);
   
@@ -285,27 +273,28 @@ void setup(void)
 
   /* setup advertising */
   ble.accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED);
-  ble.setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
   ble.accumulateAdvertisingPayload(GapAdvertisingData::SHORTENED_LOCAL_NAME,
     (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
   ble.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS,
-    (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid));
+                               (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev));
 
+  ble.accumulateScanResponse(GapAdvertisingData::SHORTENED_LOCAL_NAME,
+                              (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
+  ble.accumulateScanResponse(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS,
+                              (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev)); 
+  ble.setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
   /* 100ms; in multiples of 0.625ms. */
   ble.setAdvertisingInterval(160);
 
+  // set adv_timeout, in seconds
+  ble.setAdvertisingTimeout(0);
   ble.addService(uartService);
-  SPI.begin();
   //Set Device Name
-  err_code = RBL_SetDevName("BLIDino");
-  APP_ERROR_CHECK(err_code);
+  ble.setDeviceName((const uint8_t *)"Blidino");
 
   ble.startAdvertising();
-  err_code = app_timer_create(&m_status_check_id, APP_TIMER_MODE_REPEATED, m_status_check_handle);
-  APP_ERROR_CHECK(err_code);
-
-  err_code = app_timer_start(m_status_check_id, STATUS_CHECK_TIME, NULL);
-  APP_ERROR_CHECK(err_code);
+  usbTicker.attach(m_status_check_handle, 0.01);
+  Serial.println("Setup done");
 }
 
 
