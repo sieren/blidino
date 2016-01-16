@@ -2,7 +2,7 @@
 #include <inttypes.h>
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
-#include "../BLEParser.h"
+#include "../nRF51822-BLEMIDI/BLEParser.h"
 #include <iostream>
 #include <vector>
 
