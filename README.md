@@ -33,7 +33,14 @@ Known Issues
     • USB to BLE Parsing
 
     MIDI to BLE-MIDI Parsing needs to be rewritten and made testable. This will be added shortly.
+  
+    • Recent RedbearLabs SDK breaks USB Host Shield compatibility
 
+    The recent RBL nRF51822 breaks compatibility with the USB Host Shield. I am currently investigating
+    and fixing this issue, so Blidino will work with the most recent versions of the SDK and Arduino.
+    To make it work, checkout an older commit from the RBL Repo.
+
+[Working RBL SDK](https://github.com/RedBearLab/nRF51822-Arduino/tree/fb705923d4c4e628d9db79527d7fbf99328d9f84)
 
 Specifications
 ==============
