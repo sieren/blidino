@@ -22,9 +22,29 @@ Projects
 
 This project holds code specifically aimed at the *nRF51288* by RedBearLab. It is designed to work out of the box with the [Circuits@Home USB Host Shield 2.0](http://www.circuitsathome.com/products-page/arduino-shields/usb-host-shield-2-0-for-arduino). You can get both boards for a total of around 50$.
 
-[nRF 8100](https://github.com/sieren/blidino/tree/unit-tests/Legacy%20Projects/nRF8001-BLE-Proto)
 
-This (legacy) project used to be the very first prototype built around the wide-spread nRF8001 chip. Unfortunately that chip has a throughput limitation of around 0.9kb/s, not enough for the MIDI rate of 31250 baud.
+Requirements
+====================
+
+As of 02.2016 this sketch requires the recent RBL SDK (based on S130). To make sure you are using the right firmware,
+drop the [bootloader.hex](https://github.com/RedBearLab/nRF51822-Arduino/blob/S130/bootloader/bootloader.hex) to the mBED drive.
+Older RBL Boards sold in 2014/2015 may still be using S110, thus updating is recommended if not done already. 
+
+FAQ
+====================
+
+    • Do I have to use the USB Shield to make this work?
+
+    Certainly not, removing all the USB Routines from the Code and replacing them with other functions is quite easy.
+    The BLEParser takes in a Receiver Type which can be anything. To see an example of a fake-receiver, see the unit-test code.
+
+
+    • Does this work with other Bluetooth boards?
+
+    I suppose, but not out of the box. You'd have to re-implement the nRF SDK specific bluetooth functions for your board.
+    The only supported boards right now are the ones based on the nRF51288 (and marketed through RBL). 
+    Rewriting this code natively for the nRF SDK is quite easy though and proved an ideal reference in the past.
+
 
 Known Issues
 ====================
@@ -33,11 +53,6 @@ Known Issues
     • USB to BLE Parsing
 
     MIDI to BLE-MIDI Parsing needs to be rewritten and made testable. This will be added shortly.
-
-    • Recent RedbearLabs SDK breaks USB Host Shield compatibility
-
-    The recent RBL nRF51822 breaks compatibility with the USB Host Shield. I am currently investigating
-    and fixing this issue, so Blidino will work with the most recent versions of the SDK and Arduino.
 
 Specifications
 ==============
