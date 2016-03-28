@@ -1,28 +1,25 @@
 /*
- *   Copyright (c) 2015 Matthias Frick, All rights reserved.
+ *  Copyright (c) 2014 Matthias Frick
  *
- *   This library is free software; you can redistribute it and/or
- *   modify it under the terms of the GNU Lesser General Public
- *   License as published by the Free Software Foundation; either
- *   version 2.1 of the License, or (at your option) any later version.
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
  *
- *   This library is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *   See the GNU Lesser General Public License for more details.
+ *  The above copyright notice and this permission notice shall be included in all
+ *  copies or substantial portions of the Software.
  *
- *   You should have received a copy of the GNU Lesser General Public
- *   License along with this library; if not, write to the Free Software
- *   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- *   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- *   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- *   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- *   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- *   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *  SOFTWARE.
  */
+
 #include <pins_arduino.h>
 #include <Arduino.h>
 #include <BLE_API.h>
@@ -54,7 +51,7 @@ static const uint8_t uart_rx_uuid[]   = {0x77, 0x72, 0xE5, 0xDB, 0x38, 0x68, 0x4
 static const uint8_t uart_base_uuid_rev[] = {0, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 0xA7, 0x33, 0x4B, 0xE8, 0xED, 0x5A, 0x0E, 0xB8, 0x03};
 
 
- 
+
 uint8_t txPayload[TXRX_BUF_LEN] = {0,};
 uint8_t rxPayload[TXRX_BUF_LEN] = {0,};
 
@@ -70,8 +67,8 @@ GattService         uartService(uart_base_uuid, uartChars,
                                 sizeof(uartChars) / sizeof(GattCharacteristic *));
 
 /*******************************************************************************
- * INITIALIZE USB MIDI Variables
- *******************************************************************************/
+* INITIALIZE USB MIDI Variables
+*******************************************************************************/
 USB  Usb;
 USBH_MIDI  Midi(&Usb);
 uint8_t usbstate;
@@ -128,10 +125,12 @@ void m_status_check_handle(void)
   Usb.Task();
   usbstate = Usb.getUsbTaskState();
 
-  if (usbstate != laststate) {
+  if (usbstate != laststate)
+  {
     laststate = usbstate;
 
-    switch (usbstate) {
+    switch (usbstate)
+    {
       case ( USB_DETACHED_SUBSTATE_WAIT_FOR_DEVICE):
         E_Notify(PSTR("\r\nWaiting for device..."), 0x80);
         break;
@@ -151,7 +150,8 @@ void m_status_check_handle(void)
         E_Notify(PSTR("\r\nGetting device descriptor"), 0x80);
         rcode = Usb.getDevDescr(1, 0, sizeof (USB_DEVICE_DESCRIPTOR), (uint8_t*) & buf);
 
-        if (rcode) {
+        if (rcode)
+        {
           E_Notify(PSTR("\r\nError reading device descriptor. Error code "), 0x80);
           // print_hex(rcode, 8);
         }
@@ -197,16 +197,16 @@ void m_status_check_handle(void)
     }//switch( usbstate...
   }
 
-  if ( Usb.getUsbTaskState() == USB_STATE_RUNNING )
+  if (Usb.getUsbTaskState() == USB_STATE_RUNNING)
   {
-
     MIDI_poll();
   }
 }
 
+
 /*******************************************************************************
-* CB for Bluetooth disconnect
-* Restarts advertising and stops the timers.
+* Callback for Bluetooth disconnection
+* Restart advertising and stop the timers.
 *******************************************************************************/
 void disconnectionCallback(Gap::Handle_t handle,
   Gap::DisconnectionReason_t reason)
@@ -219,8 +219,8 @@ void disconnectionCallback(Gap::Handle_t handle,
 
 
 /*******************************************************************************
-* CB for incoming connections
-* Starts the timers.
+* Callback for incoming connections
+* Start the timers.
 *******************************************************************************/
 void connectionCallback(const Gap::ConnectionCallbackParams_t* params)
 {
@@ -239,7 +239,8 @@ void onDataWritten(const GattWriteCallbackParams *Handler)
   uint16_t bytesRead;
   if (Handler->handle == txCharacteristic.getValueAttribute().getHandle())
   {
-    ble.readCharacteristicValue(txCharacteristic.getValueAttribute().getHandle(), buf, &bytesRead);
+    ble.readCharacteristicValue(txCharacteristic.getValueAttribute().getHandle(),
+      buf, &bytesRead);
     parseIncoming(buf, bytesRead);
   }
 }
@@ -247,7 +248,7 @@ void onDataWritten(const GattWriteCallbackParams *Handler)
 
 /*******************************************************************************
 * Setup
-* Initialize USB Port, set Characteristics and CBs for BLE.
+* Initialize USB Port, set Characteristics and Callbacks for BLE Stack.
 *******************************************************************************/
 void setup(void)
 {
@@ -262,10 +263,9 @@ void setup(void)
   Usb.Init();
   delay(500);
   Serial.begin(9600);
-  Serial.println("Begin Init.. ");
 
   parser.setUSBMidiHandle(&Midi);
-  
+
   ble.init();
   ble.onDisconnection(disconnectionCallback);
   ble.onConnection(connectionCallback);
@@ -276,25 +276,26 @@ void setup(void)
   ble.accumulateAdvertisingPayload(GapAdvertisingData::SHORTENED_LOCAL_NAME,
     (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
   ble.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS,
-                               (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev));
+    (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev));
 
   ble.accumulateScanResponse(GapAdvertisingData::SHORTENED_LOCAL_NAME,
-                              (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
+    (const uint8_t *)"BLIDIno", sizeof("BLIDIno") - 1);
   ble.accumulateScanResponse(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS,
-                              (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev)); 
+    (const uint8_t *)uart_base_uuid_rev, sizeof(uart_base_uuid_rev));
   ble.setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
+
   /* 100ms; in multiples of 0.625ms. */
   ble.setAdvertisingInterval(160);
 
   // set adv_timeout, in seconds
   ble.setAdvertisingTimeout(0);
   ble.addService(uartService);
+
   //Set Device Name
   ble.setDeviceName((const uint8_t *)"Blidino");
 
   ble.startAdvertising();
   usbTicker.attach(m_status_check_handle, 0.01);
-  Serial.println("Setup done");
 }
 
 
@@ -306,9 +307,10 @@ void loop(void)
   ble.waitForEvent();
 }
 
+
 /*******************************************************************************
- * Poll MIDI DATA from USB Port
- *******************************************************************************/
+* Poll MIDI DATA from USB Port
+*******************************************************************************/
 void MIDI_poll()
 {
   uint8_t bufMidi[64];
@@ -325,19 +327,18 @@ void MIDI_poll()
 
   do
   {
-    if ( (size = Midi.RecvData(outBuf)) > 0 ) {
+    if ((size = Midi.RecvData(outBuf)) > 0)
+    {
       // Send data to parser
       parseMIDItoAppleBle(size, outBuf);
     }
   } while (size > 0);
-
- uint32_t err_code = NRF_SUCCESS;
 }
 
 
 /*******************************************************************************
- * Convert MIDI Data to MIDI-BLE Packets
- *******************************************************************************/
+* Convert MIDI Data to MIDI-BLE Packets
+*******************************************************************************/
 void parseMIDItoAppleBle(int size, byte outBuf[3])
 {
   char time[2];
@@ -346,10 +347,11 @@ void parseMIDItoAppleBle(int size, byte outBuf[3])
   int lastPos;
   timer = millis();
   uint16_t blueMidiTime = 0;
-  blueMidiTime = 32768 + (timer % 16383);
+  blueMidiTime = 32768 + (timer % 16383); // TODO Proper Bitshifting
 
-  uint32_t err_code = NRF_SUCCESS;
-  int localBufNum = rx_buf_num;
+  // TODO
+  // This section is a total mess and is in urgent need of
+  // a rewrite.
 
   if(rx_buf_num <= 100) // arbitrary high number
   {
@@ -375,8 +377,8 @@ void parseMIDItoAppleBle(int size, byte outBuf[3])
 
 
 /*******************************************************************************
- * Convert MIDI BLE to MIDI USB
- *******************************************************************************/
+* Convert MIDI BLE to MIDI USB
+*******************************************************************************/
 void parseIncoming(uint8_t *buffer, uint16_t bytesRead)
 {
   for (int i = 1; i < bytesRead; i++)
@@ -387,8 +389,8 @@ void parseIncoming(uint8_t *buffer, uint16_t bytesRead)
 
 
 /*******************************************************************************
- * Convert USB Host debug info to Hex
- *******************************************************************************/
+* Convert USB Host debug info to Hex
+*******************************************************************************/
 void print_hex(int v, int num_places)
 {
   int mask = 0, n, num_nibbles, digit;

@@ -1,4 +1,24 @@
-//  Created by Matthias Frick on 24/07/15.
+/*
+ *  Copyright (c) 2014 Matthias Frick
+ *
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ *  The above copyright notice and this permission notice shall be included in all
+ *  copies or substantial portions of the Software.
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *  SOFTWARE.
+ */
 
 #ifndef ____BLEParser__
 #define ____BLEParser__
@@ -16,10 +36,11 @@ namespace midi
   static int MIDI_STATE_SIGNAL_3BYTES_2 = 31;
   static int MIDI_STATE_SIGNAL_3BYTES_3 = 32;
   static int MIDI_STATE_SIGNAL_SYSEX = 41;
+
   // for Timestamp
   static int MAX_TIMESTAMP = 8192;
   static int BUFFER_LENGTH_MILLIS = 10;
-  
+
 
   // for RPN/NRPN messages
   static int PARAMETER_MODE_NONE = 0;
@@ -29,14 +50,11 @@ namespace midi
   int parameterNumber = 0x3fff;
   int parameterValue = 0x3fff;
 
-  
-  
-  
   template <int kMaxBufferSize, typename Receiver>
   class BLEMIDIParser
   {
   public:
-  
+
     void parseMidiEvent(uint8_t header, const uint8_t event)
     {
       uint8_t midiEvent = event & 0xff;
@@ -378,7 +396,7 @@ namespace midi
         if (midiEvent == 0xf7)
         {
           uint8_t repEvt = replaceLastByteInSysExBuffer(midiEvent);
-    
+
           resetRecoveryBuffer();
           createSysExRecovery();
           replaceLastByteInRecoveryBuffer(repEvt);
@@ -396,23 +414,23 @@ namespace midi
     }
     void setUSBMidiHandle(Receiver *MidiHdl)
     {
-      midiRecv = MidiHdl; 
+      midiRecv = MidiHdl;
     }
-  
+
   private:
-  
+
     void addByteToMidiBuffer(uint8_t midiEvent)
     {
       midiBuffer[midiBufferPtr] = midiEvent;
       midiBufferPtr++;
     }
-    
+
     void addByteToSysExBuffer(uint8_t midiEvent)
     {
       sysExBuffer[sysExBufferPtr] = midiEvent;
       sysExBufferPtr++;
     }
-  
+
     uint8_t replaceLastByteInSysExBuffer(uint8_t midiEvent)
     {
       sysExBufferPtr--;
@@ -421,12 +439,12 @@ namespace midi
       sysExBufferPtr++;
       return lastEvt;
     }
-  
+
     void sendSysex()
     {
       midiRecv->SendSysEx(sysExBuffer, sysExBufferPtr, 0);
     }
-  
+
     void createSysExRecovery()
     {
       sysExRecBufferPtr = sysExBufferPtr;
@@ -437,7 +455,7 @@ namespace midi
     {
       midiRecv->SendSysEx(alterSysExBuffer, sysExRecBufferPtr, 0);
     }
-  
+
     uint8_t replaceLastByteInRecoveryBuffer(uint8_t midiEvent)
     {
       sysExRecBufferPtr--;
@@ -446,13 +464,13 @@ namespace midi
       sysExRecBufferPtr++;
       return lastEvt;
     }
-  
+
     void addByteToRecoveryBuffer(uint8_t midiEvent)
     {
       alterSysExBuffer[sysExRecBufferPtr] = midiEvent;
       sysExRecBufferPtr++;
     }
-  
+
     void resetMidiBuffer()
     {
       memset(&midiBuffer[0], 0, sizeof(midiBuffer));
@@ -464,7 +482,7 @@ namespace midi
       memset(&sysExBuffer[0], 0, kMaxBufferSize);
       sysExBufferPtr = 0;
     }
-  
+
     void resetRecoveryBuffer()
     {
       memset(&alterSysExBuffer[0], 0, sizeof(alterSysExBuffer));
@@ -482,8 +500,8 @@ namespace midi
     int midiBufferPtr = 0;
     int sysExRecBufferPtr = 0;
     int sysExBufferPtr = 0;
-  
-  
+
+
     // MIDI event messages, state & stamps
     int midiEventKind;
     int midiEventNote;
