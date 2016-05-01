@@ -20,11 +20,9 @@
  *  SOFTWARE.
  */
 
-#include <pins_arduino.h>
 #include <Arduino.h>
 #include <BLE_API.h>
 #include <nordic_common.h>
-//#include <SPI.h>
 #include <Usb.h>
 #include <usbh_midi.h>
 #include "BLEParser.h"
