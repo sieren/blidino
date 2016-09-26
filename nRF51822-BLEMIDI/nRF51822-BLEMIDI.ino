@@ -206,8 +206,7 @@ void m_status_check_handle(void)
 * Callback for Bluetooth disconnection
 * Restart advertising and stop the timers.
 *******************************************************************************/
-void disconnectionCallback(Gap::Handle_t handle,
-  Gap::DisconnectionReason_t reason)
+void disconnectionCallback(const Gap::DisconnectionCallbackParams_t*)
 {
     Serial.println("Disconnected ");
     Serial.println("Restart advertising ");
